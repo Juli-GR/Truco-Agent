@@ -1,0 +1,31 @@
+# Notas personales
+notas_teoria.md
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Resultados y modelos (se regeneran con experiments/)
+results/
+*.pt
+runs/
+
+# LaTeX (auxiliares; el .tex sí se versiona)
+informe/**/*.aux
+informe/**/*.log
+informe/**/*.out
+informe/**/*.toc
+informe/**/*.synctex.gz
+informe/**/*.fls
+informe/**/*.fdb_latexmk
+informe/**/*.bbl
+informe/**/*.blg
+
+# Sistema / editor
+.vscode/
+Thumbs.db
+.DS_Store
