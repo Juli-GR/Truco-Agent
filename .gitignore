@@ -13,6 +13,9 @@ __pycache__/
 results/
 *.pt
 runs/
+mlflow.db
+mlartifacts/
+mlruns/
 
 # LaTeX (auxiliares; el .tex sí se versiona)
 informe/**/*.aux
