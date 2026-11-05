@@ -1,4 +1,4 @@
-"""Mazo español de 40 cartas y cálculo de tantos de envido."""
+"""Mazo español de 40 cartas, cálculo de tantos de envido y jerarquía del truco."""
 
 from functools import cache
 from itertools import combinations
@@ -22,8 +22,41 @@ def suit(card: int) -> int:
     return card // len(RANKS)
 
 
+def make_card(rank_value: int, suit_name: str) -> int:
+    return SUITS.index(suit_name) * len(RANKS) + RANKS.index(rank_value)
+
+
 def card_to_string(card: int) -> str:
     return f"{rank(card)} de {SUITS[suit(card)]}"
+
+
+# Jerarquía del truco, de mayor a menor (nivel 0 = carta más alta). Cada nivel agrupa las cartas que
+# son equivalentes en el truco: sin envido, el palo solo importa a través de este orden.
+_TRUCO_ORDER = (
+    ("1e", [(1, "espada")]),
+    ("1b", [(1, "basto")]),
+    ("7e", [(7, "espada")]),
+    ("7o", [(7, "oro")]),
+    ("3", [(3, s) for s in SUITS]),
+    ("2", [(2, s) for s in SUITS]),
+    ("1f", [(1, "oro"), (1, "copa")]),
+    ("12", [(12, s) for s in SUITS]),
+    ("11", [(11, s) for s in SUITS]),
+    ("10", [(10, s) for s in SUITS]),
+    ("7f", [(7, "basto"), (7, "copa")]),
+    ("6", [(6, s) for s in SUITS]),
+    ("5", [(5, s) for s in SUITS]),
+    ("4", [(4, s) for s in SUITS]),
+)
+TRUCO_LEVEL_NAMES = tuple(name for name, _ in _TRUCO_ORDER)
+TRUCO_LEVEL_CARDS = tuple(tuple(make_card(r, s) for r, s in cards) for _, cards in _TRUCO_ORDER)
+NUM_TRUCO_LEVELS = len(_TRUCO_ORDER)
+_CARD_LEVEL = {c: level for level, cards in enumerate(TRUCO_LEVEL_CARDS) for c in cards}
+
+
+def truco_level(card: int) -> int:
+    """Nivel de una carta en la jerarquía del truco (0 = la más alta)."""
+    return _CARD_LEVEL[card]
 
 
 def envido_value(card: int) -> int:
