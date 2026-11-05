@@ -43,6 +43,63 @@ Truco argentino 1v1, sin flor. Este documento fija las reglas exactas que implem
 - El pie declara los suyos solo si son mayores; si no, dice "son buenas" y sus tantos quedan ocultos.
 - Empate de tantos: gana el mano.
 
+## Truco
+
+### Jerarquía de cartas
+
+De mayor a menor:
+
+1. 1 de espada
+2. 1 de basto
+3. 7 de espada
+4. 7 de oro
+5. 3
+6. 2
+7. 1 de oro y 1 de copa
+8. 12
+9. 11
+10. 10
+11. 7 de basto y 7 de copa
+12. 6
+13. 5
+14. 4
+
+Dos cartas del mismo nivel empatan (parda).
+
+### Bazas
+
+- Cada jugador tira una carta por baza; la gana la carta más alta.
+- La primera baza la abre el mano. Las siguientes las abre quien ganó la anterior, o el mano si fue
+  parda.
+- Gana la mano quien gane dos bazas.
+- Pardas:
+  - Si alguien ganó la primera y la segunda o la tercera sale parda, gana quien ganó la primera.
+  - Si la primera es parda, gana quien gane la segunda. Si la segunda también es parda, gana quien gane
+    la tercera.
+  - Si las tres son pardas, gana el mano.
+- La mano termina en cuanto el ganador queda determinado; no se tiran las cartas restantes.
+
+### Cantos
+
+- Sin cantos, la mano vale 1 punto.
+- Truco (2 puntos), retruco (3) y vale cuatro (4), en ese orden.
+- Ante un canto, el rival responde: quiero, no quiero o sube (si hay un nivel siguiente).
+- No quiero: quien cantó último gana el nivel anterior (1, 2 o 3 puntos).
+- El truco lo puede cantar cualquiera. Cada subida solo la puede cantar quien aceptó el último canto
+  (quien "tiene el quiero"); nadie sube su propio canto.
+- Ventana de cantos: antes de cada carta tirada hay una ventana en la que cada jugador tiene una
+  oportunidad de cantar, irse al mazo o pasar. Primero actúa quien tiró la última carta; antes de la
+  primera carta de la mano, primero actúa el mano.
+- Si un canto se resuelve con quiero, la ventana sigue con la oportunidad del otro jugador (si no la
+  tuvo todavía). Al cerrar la ventana, tira su carta quien corresponda.
+
+### Irse al mazo
+
+- Un jugador puede irse al mazo en su oportunidad dentro de una ventana de cantos, si no hay un canto
+  pendiente de respuesta (con un canto pendiente, no quiero es equivalente).
+- El rival gana lo que está en juego: 1 punto si no hay truco aceptado, o el valor del último canto
+  aceptado.
+
 ## Etapa 1: envido aislado
 
 - El nodo de azar reparte directamente el par de tantos (t₁, t₂) con la probabilidad exacta que surge
