@@ -89,14 +89,18 @@ pierden los mismos puntos y no hay manos futuras para las que esconder informaci
 
 ## Enfrentamientos
 
-Puntos por mano del rival de la fila contra el de la columna, en 1000 manos con el mazo completo,
-alternando quién es jugador 0.
+Puntos por mano del rival de la fila contra el de la columna, ± el error estándar, con el mazo
+completo. Se jugaron 1000 repartos duplicados por par (`truco/evaluation/arena.py`): cada reparto
+se juega dos veces con los asientos invertidos, así la suerte de las cartas se cancela.
 
 | | vs `aleatorio` | vs `conservador` | vs `equilibrado` | vs `agresivo` |
 |---|---|---|---|---|
-| `conservador` | +0,83 | — | +0,12 | +0,21 |
-| `equilibrado` | +1,08 | −0,09 | — | +0,34 |
-| `agresivo` | +1,45 | −0,29 | −0,22 | — |
+| `conservador` | +0,89 ± 0,03 | — | +0,12 ± 0,015 | +0,29 ± 0,025 |
+| `equilibrado` | +1,09 ± 0,03 | −0,12 ± 0,015 | — | +0,25 ± 0,02 |
+| `agresivo` | +1,46 ± 0,03 | −0,29 ± 0,025 | −0,25 ± 0,02 | — |
+
+Todas las diferencias superan con holgura dos errores estándar: el orden conservador > equilibrado >
+agresivo no es suerte de las cartas.
 
 ## Limitaciones
 
