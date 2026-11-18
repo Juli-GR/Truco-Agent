@@ -3,6 +3,10 @@
 Reglas en docs/reglas.md. Sin envido, el palo solo importa a través de la jerarquía del truco, así
 que el azar reparte niveles de la jerarquía en lugar de cartas: es una abstracción sin pérdida. El
 parámetro `niveles` deja en el mazo solo los niveles más altos (14 = mazo completo).
+
+El parámetro `observacion` elige qué devuelven information_state_tensor y observation_tensor, la
+entrada de las redes ("raw", "compact" o "full"; ver truco/games/observations.py). Los strings de
+information state son siempre el information set exacto, así que CFR no depende de este parámetro.
 """
 
 import enum
@@ -49,7 +53,8 @@ _NUM_CARDS_PLAYED = _NUM_PLAYERS * HAND_SIZE
 # respuestas a cantos.
 _MAX_GAME_LENGTH = _NUM_CARDS_PLAYED * (1 + _NUM_PLAYERS) + len(_CALL_VALUE)
 _MIN_LEVELS = 5  # con menos niveles no hay cartas para repartir 3 a cada jugador
-_DEFAULT_PARAMS = {"niveles": NUM_TRUCO_LEVELS}
+OBSERVACIONES = ("raw", "compact", "full")
+_DEFAULT_PARAMS = {"niveles": NUM_TRUCO_LEVELS, "observacion": "full"}
 
 _GAME_TYPE = pyspiel.GameType(
     short_name="truco",
@@ -115,6 +120,8 @@ class TrucoGame(pyspiel.Game):
         niveles = params["niveles"]
         if not _MIN_LEVELS <= niveles <= NUM_TRUCO_LEVELS:
             raise ValueError(f"niveles debe estar entre {_MIN_LEVELS} y {NUM_TRUCO_LEVELS}")
+        if params["observacion"] not in OBSERVACIONES:
+            raise ValueError(f"observacion debe ser una de {OBSERVACIONES}")
         game_info = pyspiel.GameInfo(
             num_distinct_actions=_NUM_ACTIONS,
             max_chance_outcomes=len(hands(niveles)),
@@ -126,14 +133,23 @@ class TrucoGame(pyspiel.Game):
         )
         super().__init__(_GAME_TYPE, game_info, params)
         self.niveles = niveles
+        self.observacion = params["observacion"]
 
     def new_initial_state(self):
         return TrucoState(self)
 
     def make_py_observer(self, iig_obs_type=None, params=None):
-        return TrucoObserver(
-            iig_obs_type or pyspiel.IIGObservationType(perfect_recall=False), params
+        iig_obs_type = iig_obs_type or pyspiel.IIGObservationType(perfect_recall=False)
+        player_view = (
+            iig_obs_type.public_info
+            and iig_obs_type.private_info == pyspiel.PrivateInfoType.SINGLE_PLAYER
         )
+        if self.observacion == "raw" or not player_view:
+            return TrucoObserver(iig_obs_type, params)
+        # Import diferido: observations importa este módulo.
+        from truco.games.observations import EncodedObserver
+
+        return EncodedObserver(self.observacion, TrucoObserver(iig_obs_type, params))
 
 
 class TrucoState(pyspiel.State):
@@ -341,6 +357,8 @@ class _AnyCards(list):
 
 def actors(state: TrucoState) -> list[int]:
     """Quién hizo cada acción del historial, rehaciéndolo con información pública."""
+    if not state.history_actions:  # incluye los estados antes del reparto, sin mano todavía
+        return []
     replay = TrucoState(state.get_game())
     replay.mano = state.mano
     replay.hands = [(), ()]

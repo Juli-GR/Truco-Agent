@@ -7,7 +7,8 @@ Each game samples which seat the agent takes (player 0 or 1) and which opponent 
 
 `SelfPlayEnv` follows the interface of OpenSpiel's `SyncVectorEnv`, so OpenSpiel's PPO and DQN
 use it unchanged. The agent always sees itself as player 0 of a one-player game: the observation,
-legal actions and reward are those of its seat, whichever seat that is.
+legal actions and reward are those of its seat, whichever seat that is. The observation is the
+game's information state tensor, so it follows the game's `observacion` parameter.
 
 Opponents are `Policy` objects, like in the arena: they receive all the states where they have to
 play at once, so a frozen network moves in every game with a single forward pass.

@@ -33,9 +33,9 @@ def sample_actions(probs: np.ndarray, rng: np.random.Generator) -> np.ndarray:
 class NetworkPolicy:
     """Policy given by a network that maps information state tensors to one score per action.
 
-    With `greedy=False` the scores are logits and the policy is their softmax over the legal
-    actions (PPO's actor). With `greedy=True` it plays the legal action with the highest score
-    (DQN's Q-network).
+    The input is whatever the game's `observacion` parameter encodes. With `greedy=False` the
+    scores are logits and the policy is their softmax over the legal actions (PPO's actor). With
+    `greedy=True` it plays the legal action with the highest score (DQN's Q-network).
     """
 
     def __init__(self, network: nn.Module, greedy: bool = False, device: str = "cpu"):

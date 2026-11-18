@@ -44,7 +44,8 @@ def assert_agent_to_play(env, time_steps):
         assert state.current_player() == env.seats[i]
         assert ts.current_player() == AGENT_ID
         assert ts.observations["legal_actions"][0] == state.legal_actions()
-        assert ts.observations["info_state"][0] == state.information_state_tensor(env.seats[i])
+        expected = state.information_state_tensor(env.seats[i])
+        assert np.array_equal(ts.observations["info_state"][0], expected)
 
 
 def test_reset_leaves_every_game_at_the_agents_turn(game):
@@ -178,3 +179,11 @@ def test_openspiel_ppo_trains_in_self_play(game):
         env.pool.add(NetworkPolicy.snapshot(agent.network.actor))
     assert agent.updates_done == 2
     assert len(env.pool) == 3
+
+
+@pytest.mark.parametrize("observacion", ["raw", "compact", "full"])
+def test_observation_is_the_games_information_state_tensor(observacion):
+    game = pyspiel.load_game("truco", {"observacion": observacion})
+    env = SelfPlayEnv(game, OpponentPool([RIVALES["aleatorio"]]), 4)
+    assert env.info_state_shape == (game.information_state_tensor_size(),)
+    assert_agent_to_play(env, env.reset())
