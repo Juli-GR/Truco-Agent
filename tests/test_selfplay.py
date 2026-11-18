@@ -1,12 +1,13 @@
 import numpy as np
 import pyspiel
 import pytest
-from open_spiel.python.pytorch.ppo import PPO, PPOAgent
+from open_spiel.python.pytorch.ppo import PPO
 from open_spiel.python.rl_agent import StepOutput
 
 import truco.games.truco  # noqa: F401  (registers the game)
 from truco.agents.policy import NetworkPolicy
 from truco.agents.truco_rivales import CONSERVADOR, RIVALES, RandomPolicy
+from truco.algorithms.ppo import PPONetwork
 from truco.algorithms.selfplay import AGENT_ID, OpponentPool, SelfPlayEnv
 from truco.games.truco import Action
 
@@ -166,7 +167,7 @@ def test_openspiel_ppo_trains_in_self_play(game):
         player_id=AGENT_ID,
         num_envs=NUM_ENVS,
         steps_per_batch=8,
-        agent_fn=PPOAgent,
+        agent_fn=PPONetwork,
     )
     env.pool.add(NetworkPolicy.snapshot(agent.network.actor))
     time_steps = env.reset()
