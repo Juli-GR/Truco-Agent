@@ -1,7 +1,9 @@
-"""Gráficos de estrategias."""
+"""Gráficos de estrategias y de cruces entre políticas."""
 
 from collections import defaultdict
 
+import numpy as np
+from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.figure import Figure
 from matplotlib.ticker import PercentFormatter
 
@@ -148,3 +150,71 @@ def envido_strategy_figures(rows: list[dict], jugador: int = 0) -> dict[str, Fig
         name = f"{'mano' if es_mano else 'pie'}_{historia or 'inicio'}"
         figures[name] = envido_strategy_figure(group, es_mano, historia)
     return figures
+
+
+# Diverging: blue (column wins) <-> gray (even) <-> red (row wins).
+_DIVERGING = LinearSegmentedColormap.from_list(
+    "row_wins", ["#104281", "#3987e5", "#f0efec", "#e34948", "#8f1f1f"]
+)
+_SERIES = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100"]  # categorical slots 1-4
+
+
+def crossplay_heatmap_figure(means: np.ndarray, labels: list[str], num_checkpoints: int) -> Figure:
+    """Cross-play matrix: the first `num_checkpoints` rows are checkpoints, the rest fixed
+    opponents (one of them "aleatorio")."""
+    # The scale leaves out the random opponent and the initial (untrained, almost random) network:
+    # their lopsided results would wash out the rest.
+    weak = [0, labels.index("aleatorio")]
+    others = np.delete(np.delete(np.abs(means), weak, axis=0), weak, axis=1)
+    limit = max(float(others.max()), 0.05)
+
+    fig = Figure(figsize=(9, 8), facecolor=_SURFACE)
+    ax = fig.add_subplot()
+    image = ax.imshow(means, cmap=_DIVERGING, vmin=-limit, vmax=limit)
+    edge = num_checkpoints - 0.5  # checkpoints | fixed opponents
+    ax.axhline(edge, color=_INK, linewidth=1.5)
+    ax.axvline(edge, color=_INK, linewidth=1.5)
+    ax.set_xticks(range(len(labels)), labels, rotation=90, fontsize=7, color=_MUTED)
+    ax.set_yticks(range(len(labels)), labels, fontsize=7, color=_MUTED)
+    ax.tick_params(length=0)
+    for side in ax.spines.values():
+        side.set_visible(False)
+    ax.set_xlabel("Column (opponent)", color=_INK)
+    ax.set_ylabel("Row", color=_INK)
+    ax.set_title(
+        "Points per hand of the row against the column (red: the row wins)",
+        loc="left",
+        color=_INK,
+    )
+    colorbar = fig.colorbar(image, ax=ax, shrink=0.8, extend="both")
+    colorbar.ax.tick_params(colors=_MUTED, length=0)
+    colorbar.outline.set_visible(False)
+    colorbar.set_label(f"Points per hand (clipped at ±{limit:.2f})", color=_INK)
+    fig.tight_layout()
+    return fig
+
+
+def crossplay_strength_figure(updates: list[int], series: dict[str, np.ndarray]) -> Figure:
+    """One line per series: points per hand of each checkpoint against something."""
+    fig = Figure(figsize=(10, 4.5), facecolor=_SURFACE)
+    ax = fig.add_subplot()
+    ax.set_facecolor(_SURFACE)
+    ax.axhline(0, color=_AXIS, linewidth=1, zorder=1)
+    for color, (name, values) in zip(_SERIES, series.items(), strict=False):
+        ax.plot(updates, values, color=color, linewidth=2, marker="o", markersize=4, label=name)
+    ax.set_xlabel("PPO update of the checkpoint", color=_INK)
+    ax.set_ylabel("Points per hand", color=_INK)
+    ax.tick_params(colors=_MUTED, length=0)
+    ax.grid(axis="y", color=_GRID, linewidth=0.8, zorder=0)
+    for side in ("top", "right", "left", "bottom"):
+        ax.spines[side].set_visible(False)
+    ax.set_title("Each checkpoint against...", loc="left", color=_INK, pad=28)
+    ax.legend(
+        loc="lower left",
+        bbox_to_anchor=(0, 1.0),
+        ncol=len(series),
+        frameon=False,
+        labelcolor=_INK,
+    )
+    fig.tight_layout()
+    return fig

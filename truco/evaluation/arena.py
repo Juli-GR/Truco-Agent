@@ -72,21 +72,3 @@ def play_match(
     return MatchResult(
         float(values.mean()), float(values.std(ddof=1) / np.sqrt(num_deals)), num_deals
     )
-
-
-def crossplay(
-    game: pyspiel.Game, policies: list[Policy], num_deals: int, seed: int = 0
-) -> tuple[np.ndarray, np.ndarray]:
-    """Matriz de cruces: M[i, j] = puntos por mano de policies[i] contra policies[j].
-
-    Devuelve (medias, errores estándar). Solo se juega cada par i < j; el resto sale de que el
-    juego es de suma cero: M[j, i] = -M[i, j].
-    """
-    n = len(policies)
-    means, stderrs = np.zeros((n, n)), np.zeros((n, n))
-    for i in range(n):
-        for j in range(i + 1, n):
-            result = play_match(game, policies[i], policies[j], num_deals, seed + i * n + j)
-            means[i, j], means[j, i] = result.mean, -result.mean
-            stderrs[i, j] = stderrs[j, i] = result.stderr
-    return means, stderrs
