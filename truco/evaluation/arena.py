@@ -9,18 +9,12 @@ que le toca jugar, así una red evalúa cientos de estados en una sola pasada.
 """
 
 from dataclasses import dataclass
-from typing import Protocol
 
 import numpy as np
 import pyspiel
 
-from truco.games.truco import TrucoState
-
-
-class Policy(Protocol):
-    def action_probabilities(self, states: list[TrucoState]) -> np.ndarray:
-        """Matriz (estados x acciones) con la probabilidad de cada acción."""
-        ...
+from truco.agents.policy import Policy, sample_actions
+from truco.games.truco import sample_deal
 
 
 @dataclass(frozen=True)
@@ -28,26 +22,6 @@ class MatchResult:
     mean: float  # puntos por mano de A (promedio de los repartos)
     stderr: float  # error estándar de `mean`
     deals: int  # repartos jugados (cada uno, dos partidas)
-
-
-def sample_deal(game: pyspiel.Game, rng: np.random.Generator) -> list[int]:
-    """Acciones de azar de una mano: quién es mano y la mano de cada jugador."""
-    state = game.new_initial_state()
-    actions = []
-    while state.is_chance_node():
-        outcomes, probs = zip(*state.chance_outcomes(), strict=True)
-        action = int(rng.choice(outcomes, p=probs))
-        state.apply_action(action)
-        actions.append(action)
-    return actions
-
-
-def sample_actions(probs: np.ndarray, rng: np.random.Generator) -> np.ndarray:
-    """Calcula una acción por fila de `probs`, muestreada según esa fila."""
-    cumulative = np.cumsum(probs, axis=1)
-    u = rng.random(len(probs)) * cumulative[:, -1]
-    actions = (cumulative <= u[:, None]).sum(axis=1)
-    return np.minimum(actions, probs.shape[1] - 1)
 
 
 def play_games(

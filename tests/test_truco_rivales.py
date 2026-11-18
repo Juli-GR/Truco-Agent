@@ -6,13 +6,12 @@ import truco.games.truco  # noqa: F401  (registra el juego)
 from truco.agents.truco_rivales import (
     RIVALES,
     View,
-    actors,
     choose_card,
     equity,
     hand_percentile,
     playout,
 )
-from truco.games.truco import Action, hands
+from truco.games.truco import Action, actors, hands
 
 P, T, Q = Action.PASO, Action.TRUCO, Action.QUIERO
 # Niveles: 0 = 1e, 1 = 1b, 2 = 7e, 3 = 7o, 4 = 3, 5 = 2, 6 = 1 falso, ..., 13 = 4.

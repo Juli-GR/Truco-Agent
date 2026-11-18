@@ -13,12 +13,13 @@ from functools import cache, lru_cache
 
 import numpy as np
 
-from truco.games.cards import NUM_TRUCO_LEVELS, TRUCO_LEVEL_CARDS
+from truco.games.cards import NUM_TRUCO_LEVELS, card_score
 from truco.games.truco import (
     _CALL_VALUE,
     _NEXT_CALL,
     Action,
     TrucoState,
+    actors,
     deal_outcomes,
     hand_winner,
     hands,
@@ -41,13 +42,6 @@ class RandomPolicy:
 
 
 # --- Fuerza de una mano ---------------------------------------------------------------------------
-
-
-@cache
-def card_score(level: int) -> float:
-    """Fracción de las otras 39 cartas del mazo completo a las que le gana una carta del nivel."""
-    lower = sum(len(TRUCO_LEVEL_CARDS[lv]) for lv in range(level + 1, NUM_TRUCO_LEVELS))
-    return lower / 39
 
 
 def hand_strength(hand: tuple[int, ...]) -> float:
@@ -152,28 +146,6 @@ def playout(
 
 
 # --- Lo que un jugador sabe de la mano ------------------------------------------------------------
-
-
-class _AnyCards(list):
-    """Mano de reemplazo para rehacer el historial sin conocer las cartas del rival."""
-
-    def remove(self, value):
-        pass
-
-
-def actors(state: TrucoState) -> list[int]:
-    """Quién hizo cada acción del historial, rehaciéndolo con información pública."""
-    replay = TrucoState(state.get_game())
-    replay.mano = state.mano
-    replay.hands = [(), ()]
-    replay.remaining = [_AnyCards(), _AnyCards()]
-    replay.window = [state.mano, 1 - state.mano]
-    replay.card_player = state.mano
-    players = []
-    for action in state.history_actions:
-        players.append(replay.current_player())
-        replay._apply_action(action)
-    return players
 
 
 @dataclass(frozen=True)

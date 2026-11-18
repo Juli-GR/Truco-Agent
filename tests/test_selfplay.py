@@ -1,13 +1,13 @@
 import numpy as np
 import pyspiel
 import pytest
-import torch
 from open_spiel.python.pytorch.ppo import PPO, PPOAgent
 from open_spiel.python.rl_agent import StepOutput
 
 import truco.games.truco  # noqa: F401  (registers the game)
+from truco.agents.policy import NetworkPolicy
 from truco.agents.truco_rivales import CONSERVADOR, RIVALES, RandomPolicy
-from truco.algorithms.selfplay import AGENT_ID, NetworkPolicy, OpponentPool, SelfPlayEnv
+from truco.algorithms.selfplay import AGENT_ID, OpponentPool, SelfPlayEnv
 from truco.games.truco import Action
 
 NUM_ENVS = 16
@@ -154,41 +154,6 @@ def test_pool_rejects_empty_sampling_and_invalid_decay():
     for decay in (-0.1, 1.1):
         with pytest.raises(ValueError, match="decay"):
             OpponentPool(decay=decay)
-
-
-def make_states(game, n, seed=0):
-    """`n` states at a decision of some player, reached by random play."""
-    rng = np.random.default_rng(seed)
-    env = SelfPlayEnv(game, OpponentPool([RIVALES["aleatorio"]]), n, seed=seed)
-    time_steps = env.reset()
-    for _ in range(2):
-        time_steps, *_ = env.step(random_step_outputs(time_steps, rng))
-    return env.states
-
-
-def test_network_policy_is_a_distribution_over_legal_actions(game):
-    torch.manual_seed(0)
-    network = torch.nn.Linear(game.information_state_tensor_size(), game.num_distinct_actions())
-    states = make_states(game, 32)
-    for greedy in (False, True):
-        probs = NetworkPolicy(network, greedy).action_probabilities(states)
-        assert np.allclose(probs.sum(axis=1), 1)
-        for row, state in zip(probs, states, strict=True):
-            illegal = np.setdiff1d(np.arange(len(row)), state.legal_actions())
-            assert np.all(row[illegal] == 0)
-            if greedy:
-                assert np.count_nonzero(row) == 1
-
-
-def test_snapshot_does_not_change_when_the_network_trains(game):
-    network = torch.nn.Linear(game.information_state_tensor_size(), game.num_distinct_actions())
-    frozen = NetworkPolicy.snapshot(network)
-    states = make_states(game, 8)
-    before = frozen.action_probabilities(states)
-    with torch.no_grad():
-        network.weight.add_(1.0)
-    assert np.array_equal(before, frozen.action_probabilities(states))
-    assert not np.array_equal(before, NetworkPolicy(network).action_probabilities(states))
 
 
 def test_openspiel_ppo_trains_in_self_play(game):

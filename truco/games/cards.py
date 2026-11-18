@@ -59,6 +59,13 @@ def truco_level(card: int) -> int:
     return _CARD_LEVEL[card]
 
 
+@cache
+def card_score(level: int) -> float:
+    """Fracción de las otras 39 cartas del mazo completo a las que le gana una carta del nivel."""
+    lower = sum(len(TRUCO_LEVEL_CARDS[lv]) for lv in range(level + 1, NUM_TRUCO_LEVELS))
+    return lower / (NUM_CARDS - 1)
+
+
 def envido_value(card: int) -> int:
     """Valor de una carta para el envido: las figuras (10, 11, 12) valen 0."""
     r = rank(card)

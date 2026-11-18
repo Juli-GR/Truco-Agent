@@ -4,7 +4,7 @@ import pytest
 
 import truco.games.truco  # noqa: F401  (registra el juego)
 from truco.agents.truco_rivales import CONSERVADOR, RIVALES, HeuristicPolicy
-from truco.evaluation.arena import crossplay, play_match, sample_actions
+from truco.evaluation.arena import crossplay, play_match
 
 # Dos heurísticas sin faroles: juegan de forma determinística.
 OTRO_DETERMINISTA = HeuristicPolicy("otro", (0.6, 0.7, 0.8), farol=0.0)
@@ -13,14 +13,6 @@ OTRO_DETERMINISTA = HeuristicPolicy("otro", (0.6, 0.7, 0.8), farol=0.0)
 @pytest.fixture(scope="module")
 def game():
     return pyspiel.load_game("truco", {"niveles": 14})
-
-
-def test_sample_actions_follows_probabilities():
-    rng = np.random.default_rng(0)
-    probs = np.tile([0.0, 0.25, 0.0, 0.75], (20000, 1))
-    counts = np.bincount(sample_actions(probs, rng), minlength=4)
-    assert counts[0] == counts[2] == 0
-    assert counts[3] / counts.sum() == pytest.approx(0.75, abs=0.02)
 
 
 def test_deterministic_policy_against_itself_is_exactly_zero(game):

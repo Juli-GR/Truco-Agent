@@ -1,1 +1,1 @@
-"""Agentes fijos: random, heurísticos y humano por consola."""
+"""Políticas que juegan: la interfaz Policy, los rivales fijos y las políticas de redes."""

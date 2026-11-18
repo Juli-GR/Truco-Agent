@@ -332,4 +332,38 @@ def parse_information_state(info_state: str) -> dict:
     }
 
 
+class _AnyCards(list):
+    """Mano de reemplazo para rehacer el historial sin conocer las cartas del rival."""
+
+    def remove(self, value):
+        pass
+
+
+def actors(state: TrucoState) -> list[int]:
+    """Quién hizo cada acción del historial, rehaciéndolo con información pública."""
+    replay = TrucoState(state.get_game())
+    replay.mano = state.mano
+    replay.hands = [(), ()]
+    replay.remaining = [_AnyCards(), _AnyCards()]
+    replay.window = [state.mano, 1 - state.mano]
+    replay.card_player = state.mano
+    players = []
+    for action in state.history_actions:
+        players.append(replay.current_player())
+        replay._apply_action(action)
+    return players
+
+
+def sample_deal(game: pyspiel.Game, rng: np.random.Generator) -> list[int]:
+    """Acciones de azar de una mano: quién es mano y la mano de cada jugador."""
+    state = game.new_initial_state()
+    actions = []
+    while state.is_chance_node():
+        outcomes, probs = zip(*state.chance_outcomes(), strict=True)
+        action = int(rng.choice(outcomes, p=probs))
+        state.apply_action(action)
+        actions.append(action)
+    return actions
+
+
 pyspiel.register_game(_GAME_TYPE, TrucoGame)
