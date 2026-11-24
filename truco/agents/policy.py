@@ -30,6 +30,25 @@ def sample_actions(probs: np.ndarray, rng: np.random.Generator) -> np.ndarray:
     return np.minimum(actions, probs.shape[1] - 1)
 
 
+class SeatPolicy:
+    """Plays each state with the policy of the player whose turn it is: `policies[p]` for p.
+
+    For algorithms that learn one policy per seat, like NFSP.
+    """
+
+    def __init__(self, policies: list[Policy]):
+        self.policies = policies
+
+    def action_probabilities(self, states: list[TrucoState]) -> np.ndarray:
+        probs = np.zeros((len(states), states[0].num_distinct_actions()))
+        players = np.array([s.current_player() for s in states])
+        for player, policy in enumerate(self.policies):
+            rows = np.flatnonzero(players == player)
+            if len(rows):
+                probs[rows] = policy.action_probabilities([states[i] for i in rows])
+        return probs
+
+
 class NetworkPolicy:
     """Policy given by a network that maps information state tensors to one score per action.
 
