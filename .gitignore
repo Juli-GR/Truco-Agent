@@ -32,8 +32,3 @@ informe/**/*.blg
 .vscode/
 Thumbs.db
 .DS_Store
-
-# Para truco con menos cartas
-experiments/truco_cfr.py
-tests/test_efg.py
-truco/games/efg.py
