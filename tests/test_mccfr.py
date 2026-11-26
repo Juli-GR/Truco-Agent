@@ -1,8 +1,13 @@
 import numpy as np
+import pyspiel
 import pytest
 
+import truco.games.truco  # noqa: F401  (registers the game)
+from truco.agents.truco_rivales import RIVALES
 from truco.algorithms import mccfr
+from truco.evaluation.arena import play_match
 from truco.games import truco_numba as tn
+from truco.games.truco import sample_deal
 
 # Information sets of the 10-card deck (experiments/truco_infosets.py, test_abstraction.py).
 INFOSETS = {mccfr.EXACT: 654_580, mccfr.ABSTRACT: 178_708}
@@ -59,6 +64,31 @@ def test_save_and_load(tmp_path):
     for name in ("keys", "regrets", "strategy_sum", "stats"):
         np.testing.assert_array_equal(getattr(loaded, name), getattr(tables, name))
         assert getattr(loaded, name).dtype == getattr(tables, name).dtype
+
+
+def test_policy_plays_legal_actions_and_beats_random(tmp_path):
+    game = pyspiel.load_game("truco", {"niveles": 5})
+    trained = mccfr.Tables.create(21)
+    mccfr.train(trained, tn.make_deck(5), 0, 100_000, 0, mccfr.ABSTRACT)
+    trained.save(tmp_path / "ckpt")
+    policy = mccfr.MCCFRPolicy(mccfr.Tables.load(tmp_path / "ckpt", read_only=True), mccfr.ABSTRACT)
+
+    rng = np.random.default_rng(0)
+    states = []
+    for _ in range(300):
+        state = game.new_initial_state()
+        for action in sample_deal(game, rng):
+            state.apply_action(action)
+        while not state.is_terminal():
+            states.append(state)
+            state = state.child(int(rng.choice(state.legal_actions())))
+    probs = policy.action_probabilities(states)
+    for state, row in zip(states, probs, strict=True):
+        assert row.sum() == pytest.approx(1)
+        assert set(np.flatnonzero(row)) <= set(state.legal_actions())
+
+    result = play_match(game, policy, RIVALES["aleatorio"], 1000)
+    assert result.mean > 5 * result.stderr
 
 
 def test_training_is_reproducible():

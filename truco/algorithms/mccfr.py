@@ -91,8 +91,17 @@ class Tables:
             np.save(directory / f"{name}.npy", getattr(self, name))
 
     @classmethod
-    def load(cls, directory: Path) -> "Tables":
-        return cls(**{name: np.load(directory / f"{name}.npy") for name in cls._ARRAYS})
+    def load(cls, directory: Path, read_only: bool = False) -> "Tables":
+        """Loads a checkpoint. `read_only` maps the files instead of reading them into RAM (to
+        evaluate while a run is training): only the parts used are read, and they are shared
+        with the operating system's file cache."""
+        mode = "r" if read_only else None
+        return cls(
+            **{
+                name: np.asarray(np.load(directory / f"{name}.npy", mmap_mode=mode))
+                for name in cls._ARRAYS
+            }
+        )
 
 
 @njit(cache=True)
@@ -301,3 +310,27 @@ def average_strategy(keys, strategy_sum, key, n, out):
     else:
         for a in range(n):
             out[a] = 1.0 / n
+
+
+class MCCFRPolicy:
+    """Plays the average strategy of the tables (truco.agents.policy.Policy interface).
+
+    Each OpenSpiel state is converted to the simulator (replaying its history) to compute the key
+    of its information set; information sets never visited are played uniformly.
+    """
+
+    def __init__(self, tables: Tables, key_mode: int):
+        self.tables = tables
+        self.key_mode = key_mode
+
+    def action_probabilities(self, states) -> np.ndarray:
+        probs = np.zeros((len(states), states[0].num_distinct_actions()))
+        actions = np.empty(tn.MAX_ACTIONS, dtype=np.int64)
+        out = np.empty(tn.MAX_ACTIONS)
+        for i, state in enumerate(states):
+            s = tn.from_openspiel(state)
+            n = tn.legal_actions(s, actions)
+            key = key_of(s, tn.current_player(s), self.key_mode)
+            average_strategy(self.tables.keys, self.tables.strategy_sum, key, n, out)
+            probs[i, actions[:n]] = out[:n]
+        return probs
