@@ -39,6 +39,27 @@ def test_plays_like_the_openspiel_game(niveles):
         assert [tn.returns(s, p) for p in (0, 1)] == state.returns()
 
 
+@pytest.mark.parametrize("niveles", [5, 14])
+def test_exact_key_identifies_the_exact_information_set(niveles):
+    game = pyspiel.load_game("truco", {"niveles": niveles})
+    rng = np.random.default_rng(2)
+    key_to_string, string_to_key = {}, {}
+    for _ in range(2000):
+        state = game.new_initial_state()
+        for action in sample_deal(game, rng):
+            state.apply_action(action)
+        s = numba_state(state)
+        while not state.is_terminal():
+            player = state.current_player()
+            key, string = tn.exact_key(s, player), state.information_state_string(player)
+            assert key >= 0
+            assert key_to_string.setdefault(key, string) == string
+            assert string_to_key.setdefault(string, key) == key
+            action = int(rng.choice(state.legal_actions()))
+            state.apply_action(action)
+            tn.apply_action(s, action)
+
+
 def test_different_keys_pack_differently():
     game = pyspiel.load_game("truco", {"niveles": 5})
     rng = np.random.default_rng(1)

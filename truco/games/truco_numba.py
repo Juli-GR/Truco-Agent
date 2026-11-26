@@ -48,7 +48,13 @@ REMAINING = 18  # 3 slots per player, sorted, played cards removed and -1 at the
 TRICK_CARDS = 24  # [trick][player] = level played
 CARDS_PLAYED = 30
 CALLS = 31  # [call][who, trick]
-STATE_SIZE = 37
+HANDS = 37  # 3 slots per player: the dealt hand, sorted
+HISTORY_HASH = 43  # hash of the actions played, for exact_key
+STATE_SIZE = 44
+
+_HASH_START = 1469598103934665603
+_HASH_PRIME = 1099511628211  # FNV-1a prime; int64 multiplication wraps around
+_KEY_MASK = (1 << 62) - 1  # keys are non-negative
 
 
 @njit(cache=True)
@@ -67,7 +73,14 @@ def new_state(mano, hand0, hand1):
     s[CARDS_PLAYED] = 0
     s[REMAINING : REMAINING + HAND_SIZE] = np.sort(hand0)
     s[REMAINING + HAND_SIZE : REMAINING + 2 * HAND_SIZE] = np.sort(hand1)
+    s[HANDS : HANDS + 2 * HAND_SIZE] = s[REMAINING : REMAINING + 2 * HAND_SIZE]
+    s[HISTORY_HASH] = _HASH_START
     return s
+
+
+@njit(cache=True)
+def _mix(h, value):
+    return (h ^ (value + 2)) * _HASH_PRIME
 
 
 def make_deck(niveles: int) -> np.ndarray:
@@ -224,6 +237,7 @@ def _play_card(s, player, level):
 def apply_action(s, action):
     """Applies `action` (legal) of the current player, in place."""
     player = current_player(s)
+    s[HISTORY_HASH] = _mix(s[HISTORY_HASH], action)
     if action < NUM_TRUCO_LEVELS:
         _play_card(s, player, action)
         return
@@ -290,3 +304,14 @@ def info_key(s, player):
     for k in range(len(FIELD_BITS)):
         packed = (packed << FIELD_BITS[k]) | (fields[k] + FIELD_OFFSET[k])
     return packed
+
+
+@njit(cache=True)
+def exact_key(s, player):
+    """Key of `player`'s exact information set (no abstraction): a 62-bit hash of the player,
+    who is mano, the player's hand and the history. Used to validate MCCFR on small decks, where
+    a hash collision is practically impossible."""
+    h = _mix(_mix(s[HISTORY_HASH], player), s[MANO])
+    for k in range(HAND_SIZE):
+        h = _mix(h, s[HANDS + HAND_SIZE * player + k])
+    return h & _KEY_MASK
