@@ -37,6 +37,7 @@ def test_plays_like_the_openspiel_game(niveles):
             tn.apply_action(s, action)
         assert tn.current_player(s) == tn.TERMINAL
         assert [tn.returns(s, p) for p in (0, 1)] == state.returns()
+        np.testing.assert_array_equal(tn.from_openspiel(state), s)
 
 
 @pytest.mark.parametrize("niveles", [5, 14])

@@ -83,6 +83,14 @@ def _mix(h, value):
     return (h ^ (value + 2)) * _HASH_PRIME
 
 
+def from_openspiel(state) -> np.ndarray:
+    """Simulator state equal to `state`, a TrucoState after the deal (replays its history)."""
+    s = new_state(state.mano, np.array(state.hands[0]), np.array(state.hands[1]))
+    for action in state.history_actions:
+        apply_action(s, action)
+    return s
+
+
 def make_deck(niveles: int) -> np.ndarray:
     """One entry per card of the deck with the `niveles` highest levels: the card's level."""
     return np.array(
