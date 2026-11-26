@@ -14,8 +14,13 @@ folder, renamed when complete, and only then the previous one is deleted. A cras
 leaves the previous checkpoint intact; the disk needs room for two checkpoints for a moment.
 
 Resuming: `--resume <run dir>` loads the last checkpoint and continues the same MLflow run, with
-the configuration saved in the run dir (the command line only sets how long to keep going). Every
-block is seeded from `--seed` and its index, so a resumed run repeats exactly what was lost.
+the configuration saved in the run dir (the command line only sets how long to keep going and how
+many threads). Every block is seeded from `--seed` and its index; with `--threads 1` a resumed run
+repeats exactly what was lost, with more threads it is statistically the same but not identical.
+
+Threads: `--threads` iterations run in parallel on the same tables (see mccfr.train). The speed-up
+depends on the machine (memory, core types): try a short run with a few values first; the
+iterations_per_second metric shows it.
 
 Usage, from the repo root:
     python experiments/truco_mccfr.py --hours 48
@@ -94,6 +99,12 @@ def parse_args() -> argparse.Namespace:
         help="table slots = 2**this; 30 (~32 GB) fits the full deck with the abstraction",
     )
     parser.add_argument("--block", type=int, default=1_000_000, help="iterations per block")
+    parser.add_argument(
+        "--threads",
+        type=int,
+        default=8,
+        help="parallel threads; 1 makes the run exactly reproducible (see mccfr.train)",
+    )
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--iterations", type=int, help="stop after this many iterations in total")
     parser.add_argument("--hours", type=float, help="stop after this many hours (this session)")
@@ -183,7 +194,7 @@ def main() -> None:
 
                 start = time.perf_counter()
                 seed = block_seed(config["seed"], block)
-                ran = mccfr.train(tables, deck, iteration, size, seed, key_mode)
+                ran = mccfr.train(tables, deck, iteration, size, seed, key_mode, args.threads)
                 seconds = time.perf_counter() - start
                 iteration += ran
                 block += 1
@@ -192,6 +203,7 @@ def main() -> None:
                 metrics = {
                     "block_seconds": seconds,
                     "iterations_per_second": speed,
+                    "threads": args.threads,
                     "entries": tables.num_entries,
                     "load": tables.load_factor,
                     "rescales": int(tables.stats[mccfr.RESCALES]),

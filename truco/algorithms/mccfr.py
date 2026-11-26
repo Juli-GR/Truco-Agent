@@ -25,8 +25,9 @@ discounted CFR.
 from dataclasses import dataclass
 from pathlib import Path
 
+import numba
 import numpy as np
-from numba import njit
+from numba import njit, prange
 
 from truco.games import truco_numba as tn
 
@@ -234,6 +235,28 @@ def run_iterations(deck, first_iteration, num_iterations, seed, tables_arrays, k
     return num_iterations
 
 
+@njit(cache=True, parallel=True)
+def run_iterations_parallel(
+    deck, first_iteration, num_iterations, chunk_seeds, tables_arrays, key_mode
+):
+    """Like run_iterations, split into one chunk per seed, chunks run in parallel threads on the
+    same tables. Each chunk seeds its thread's random generator (numba keeps one per thread)."""
+    keys, regrets, strategy_sum, stats = tables_arrays
+    num_chunks = len(chunk_seeds)
+    ran = np.zeros(num_chunks, dtype=np.int64)
+    for c in prange(num_chunks):
+        np.random.seed(chunk_seeds[c])
+        start = c * num_iterations // num_chunks
+        end = (c + 1) * num_iterations // num_chunks
+        for i in range(start, end):
+            if stats[FULL]:
+                break
+            traverser = (first_iteration + i) % 2
+            traverse(tn.deal(deck), traverser, keys, regrets, strategy_sum, stats, key_mode)
+            ran[c] += 1
+    return ran.sum()
+
+
 def train(
     tables: Tables,
     deck: np.ndarray,
@@ -241,10 +264,25 @@ def train(
     num_iterations: int,
     seed: int,
     key_mode: int,
+    threads: int = 1,
 ) -> int:
-    """Runs a block of iterations; returns how many ran (fewer only if the table got full)."""
+    """Runs a block of iterations; returns how many ran (fewer only if the table got full).
+
+    With `threads` > 1 the iterations run in parallel on the same tables without locks
+    ("Hogwild"): two threads may occasionally lose an addition or, very rarely, share a row when
+    they insert two new keys into the same slot at the same moment. With tables of hundreds of
+    millions of rows this noise is negligible, but the run is no longer exactly reproducible.
+    """
     arrays = (tables.keys, tables.regrets, tables.strategy_sum, tables.stats)
-    return run_iterations(deck, first_iteration, num_iterations, seed, arrays, key_mode)
+    if threads == 1:
+        return run_iterations(deck, first_iteration, num_iterations, seed, arrays, key_mode)
+    numba.set_num_threads(threads)
+    chunk_seeds = np.random.SeedSequence(seed).generate_state(threads).astype(np.int64)
+    return int(
+        run_iterations_parallel(
+            deck, first_iteration, num_iterations, chunk_seeds, arrays, key_mode
+        )
+    )
 
 
 @njit(cache=True)

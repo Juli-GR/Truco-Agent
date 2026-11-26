@@ -43,6 +43,14 @@ def test_training_visits_only_real_information_sets(key_mode):
         assert (out[:2] >= 0).all()
 
 
+def test_parallel_training_runs_every_iteration():
+    tables = mccfr.Tables.create(21)
+    ran = mccfr.train(tables, tn.make_deck(5), 0, 20_000, 0, mccfr.ABSTRACT, threads=4)
+    assert ran == 20_000
+    assert 0 < tables.num_entries <= INFOSETS[mccfr.ABSTRACT]
+    assert (tables.strategy_sum >= 0).all()
+
+
 def test_save_and_load(tmp_path):
     tables = mccfr.Tables.create(16)
     mccfr.train(tables, tn.make_deck(5), 0, 500, 3, mccfr.ABSTRACT)
