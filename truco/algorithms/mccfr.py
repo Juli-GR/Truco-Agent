@@ -23,6 +23,7 @@ discounted CFR.
 """
 
 from dataclasses import dataclass
+from pathlib import Path
 
 import numpy as np
 from numba import njit
@@ -69,7 +70,8 @@ class Tables:
         return int(self.stats[ENTRIES])
 
     @property
-    def load(self) -> float:
+    def load_factor(self) -> float:
+        """Fraction of the slots in use."""
         return self.num_entries / len(self.keys)
 
     @property
@@ -78,6 +80,18 @@ class Tables:
 
     def nbytes(self) -> int:
         return self.keys.nbytes + self.regrets.nbytes + self.strategy_sum.nbytes
+
+    _ARRAYS = ("keys", "regrets", "strategy_sum", "stats")
+
+    def save(self, directory: Path) -> None:
+        """Writes every array as .npy into `directory` (created if missing)."""
+        directory.mkdir(parents=True, exist_ok=True)
+        for name in self._ARRAYS:
+            np.save(directory / f"{name}.npy", getattr(self, name))
+
+    @classmethod
+    def load(cls, directory: Path) -> "Tables":
+        return cls(**{name: np.load(directory / f"{name}.npy") for name in cls._ARRAYS})
 
 
 @njit(cache=True)

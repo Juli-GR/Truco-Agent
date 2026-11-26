@@ -43,6 +43,16 @@ def test_training_visits_only_real_information_sets(key_mode):
         assert (out[:2] >= 0).all()
 
 
+def test_save_and_load(tmp_path):
+    tables = mccfr.Tables.create(16)
+    mccfr.train(tables, tn.make_deck(5), 0, 500, 3, mccfr.ABSTRACT)
+    tables.save(tmp_path / "ckpt")
+    loaded = mccfr.Tables.load(tmp_path / "ckpt")
+    for name in ("keys", "regrets", "strategy_sum", "stats"):
+        np.testing.assert_array_equal(getattr(loaded, name), getattr(tables, name))
+        assert getattr(loaded, name).dtype == getattr(tables, name).dtype
+
+
 def test_training_is_reproducible():
     results = []
     for _ in range(2):
