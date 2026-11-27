@@ -11,8 +11,10 @@ Actions are the same integers as in hand.py: 0-39 play that card, then `Action`.
 import numpy as np
 from numba import njit
 
+from truco.algorithms import abstraction as truco_abstraction
+from truco.algorithms import hand_abstraction as ha
 from truco.games import truco_numba as tn
-from truco.games.cards import HAND_SIZE, NUM_CARDS, RANKS, truco_level
+from truco.games.cards import HAND_SIZE, NUM_CARDS, NUM_TRUCO_LEVELS, RANKS, truco_level
 from truco.games.hand import Action
 
 PASO = int(Action.PASO)
@@ -47,6 +49,15 @@ CARD_ENVIDO = np.array(
     dtype=np.int64,
 )
 DECK = np.arange(NUM_CARDS, dtype=np.int64)
+
+# Abstract key: the truco key's fields (unpacked from truco_numba's bits), then the envido ones,
+# packed in mixed radix as truco.algorithms.hand_abstraction.
+TRUCO_FIELD_BITS = truco_abstraction.FIELD_BITS
+TRUCO_FIELD_OFFSET = truco_abstraction.FIELD_OFFSET
+NUM_TRUCO_FIELDS = len(TRUCO_FIELD_BITS)
+KEY_FIELD_SIZES = ha.FIELD_SIZES
+KEY_FIELD_OFFSET = ha.FIELD_OFFSET
+TANTOS_RANGES = ha.TANTOS_RANGES
 
 
 @njit(cache=True)
@@ -167,6 +178,34 @@ def legal_actions(s, out):
 
 
 @njit(cache=True)
+def abstract_legal_actions(s, out):
+    """Legal actions with each card replaced by its level, once per level, sorted (as
+    hand_abstraction.abstract_actions); returns how many."""
+    n = legal_actions(s, out)
+    if out[0] >= NUM_CARDS:
+        return n
+    return tn.legal_actions(s, out)  # playing a card: truco_numba gives the levels
+
+
+@njit(cache=True)
+def card_of_level(s, player, level):
+    """The lowest-numbered card of `level` that `player` holds (as hand_abstraction)."""
+    base = CARDS_LEFT + HAND_SIZE * player
+    for i in range(HAND_SIZE):
+        if s[base + i] >= 0 and CARD_LEVEL[s[base + i]] == level:
+            return s[base + i]
+    return -1
+
+
+@njit(cache=True)
+def apply_abstract_action(s, action):
+    """Applies an action of abstract_legal_actions: a level plays card_of_level."""
+    if action < NUM_TRUCO_LEVELS:
+        action = card_of_level(s, current_player(s), action)
+    apply_action(s, action)
+
+
+@njit(cache=True)
 def _call_points(call):
     return 2 if call == ENVIDO else 3
 
@@ -222,6 +261,41 @@ def apply_action(s, action):
         tn.apply_action(s, CARD_LEVEL[action])
     else:
         tn.apply_action(s, action + TRUCO_OFFSET)
+
+
+@njit(cache=True)
+def _envido_field(s, player):
+    """envido field of the abstract key (see hand_abstraction)."""
+    n = s[ENVIDO_N]
+    if n == 0:
+        return ha.NOT_CALLED
+    if envido_pending(s):  # index in ha.PENDING_CALLS, plus 1
+        if n == 1:
+            return 1 if s[ENVIDO_CALLS] == ENVIDO else 2
+        if n == 2:
+            return 3 if s[ENVIDO_CALLS + 1] == ENVIDO else 4
+        return 5
+    return ha.RIVAL_30 if s[DECLARED + 1 - player] >= 30 else ha.RESOLVED
+
+
+@njit(cache=True)
+def info_key(s, player):
+    """Abstract key of `player`'s information set, packed: equals
+    pack_key(abstract_hand_key(state, player)) of truco.algorithms.hand_abstraction."""
+    fields = np.empty(len(KEY_FIELD_SIZES), dtype=np.int64)
+    packed = tn.info_key(s, player)
+    for k in range(NUM_TRUCO_FIELDS - 1, -1, -1):
+        bits = TRUCO_FIELD_BITS[k]
+        fields[k] = (packed & ((1 << bits) - 1)) - TRUCO_FIELD_OFFSET[k]
+        packed >>= bits
+    fields[NUM_TRUCO_FIELDS] = _envido_field(s, player)
+    open_ = envido_pending(s) or can_call_envido(s, player)
+    fields[NUM_TRUCO_FIELDS + 1] = TANTOS_RANGES[s[TANTOS + player]] if open_ else -1
+
+    key = 0
+    for k in range(len(KEY_FIELD_SIZES)):
+        key = key * KEY_FIELD_SIZES[k] + fields[k] + KEY_FIELD_OFFSET[k]
+    return key
 
 
 @njit(cache=True)

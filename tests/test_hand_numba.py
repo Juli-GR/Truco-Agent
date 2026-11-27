@@ -5,9 +5,15 @@ import pyspiel
 import pytest
 
 import truco.games.hand  # noqa: F401  (registers the game)
+from truco.algorithms.hand_abstraction import (
+    abstract_actions,
+    abstract_hand_key,
+    card_of_level,
+    pack_key,
+)
 from truco.games import hand_numba as hn
 from truco.games import truco_numba as tn
-from truco.games.cards import NUM_CARDS, tantos
+from truco.games.cards import NUM_CARDS, NUM_TRUCO_LEVELS, tantos
 from truco.games.truco import sample_deal
 
 
@@ -52,8 +58,18 @@ def test_plays_like_the_openspiel_game(game):
             assert hn.current_player(s) == hn.TERMINAL
             assert [hn.returns(s, p) for p in (0, 1)] == state.returns()
         else:
-            assert hn.current_player(s) == state.current_player()
+            player = state.current_player()
+            assert hn.current_player(s) == player
             assert legal(s) == state.legal_actions()
+            assert hn.info_key(s, player) == pack_key(abstract_hand_key(state, player))
+            out = np.empty(hn.MAX_ACTIONS, dtype=np.int64)
+            assert out[: hn.abstract_legal_actions(s, out)].tolist() == abstract_actions(state)
+            if out[0] < NUM_TRUCO_LEVELS:
+                after = s.copy()
+                hn.apply_abstract_action(after, out[0])
+                expected = s.copy()
+                hn.apply_action(expected, card_of_level(state, player, out[0]))
+                np.testing.assert_array_equal(after, expected)
         np.testing.assert_array_equal(hn.from_openspiel(state), s)
 
 
