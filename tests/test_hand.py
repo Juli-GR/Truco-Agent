@@ -76,6 +76,18 @@ def test_returns(game, actions, expected):
     assert state.returns() == expected
 
 
+def test_child_states_are_independent_copies(game):
+    state = deal(game, 0, TREINTA_Y_TRES, VEINTINUEVE)
+    for a in [E, N, M]:
+        state = state.child(a)
+    assert state.is_terminal()
+    assert state.returns() == [1 - 1, -1 + 1]
+
+    parent = deal(game, 0, TREINTA_Y_TRES, VEINTINUEVE)
+    parent.child(M)
+    assert not parent.is_terminal() and parent.legal_actions() == [P, T, M, E, RE]
+
+
 def test_tantos_are_declared_as_in_the_rules(game):
     state = play(game, 0, TREINTA_Y_TRES, VEINTINUEVE, [E, Q])
     assert state.declared == [33, None]  # the pie says "son buenas"

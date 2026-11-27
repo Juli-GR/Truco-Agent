@@ -135,10 +135,22 @@ class HandGame(pyspiel.Game):
         )
 
 
+class _ClonedOnCopy:
+    """Holds a pyspiel state so that deep copies clone it. Copying a HandState (clone, child)
+    deep-copies its attributes, and copy.deepcopy of a Python pyspiel state gives a broken copy
+    (its actions are not applied to it), while clone() works."""
+
+    def __init__(self, state: pyspiel.State):
+        self.state = state
+
+    def __deepcopy__(self, memo):
+        return _ClonedOnCopy(self.state.clone())
+
+
 class HandState(pyspiel.State):
     def __init__(self, game):
         super().__init__(game)
-        self.truco = game.truco_game.new_initial_state()  # the truco part, on levels
+        self._truco = _ClonedOnCopy(game.truco_game.new_initial_state())
         self.mano: int | None = None
         self.cards: list[tuple[int, ...]] = []  # dealt hands, one per player
         self.cards_left: list[list[int]] = []  # cards each player still holds
@@ -148,6 +160,11 @@ class HandState(pyspiel.State):
         self.envido_winner: int | None = None  # set when the envido is resolved
         self.envido_points = 0
         self.declared: list[int | None] = [None, None]  # tantos each player declared (public)
+
+    @property
+    def truco(self) -> truco.TrucoState:
+        """The truco part of the hand, on levels."""
+        return self._truco.state
 
     # --- Envido ---
 
