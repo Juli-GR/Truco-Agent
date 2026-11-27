@@ -154,15 +154,21 @@ def main():
         print(f"niveles={args.niveles}: {infosets:,} information sets, {pairs:,} pairs")
         print(f"tabular MCCFR memory (2 float32 tables): {memory_gb:.2f} GB  [{seconds:.0f} s]")
         mlflow.log_metrics(
-            {"infosets": infosets, "infoset_actions": pairs, "memory_gb": memory_gb,
-             "seconds": seconds}
+            {
+                "infosets": infosets,
+                "infoset_actions": pairs,
+                "memory_gb": memory_gb,
+                "seconds": seconds,
+            }
         )
 
         if args.check:
             start = time.perf_counter()
             expected = brute_force(game)
-            print(f"brute force: {expected[0]:,} information sets, {expected[1]:,} pairs "
-                  f"[{time.perf_counter() - start:.0f} s]")
+            print(
+                f"brute force: {expected[0]:,} information sets, {expected[1]:,} pairs "
+                f"[{time.perf_counter() - start:.0f} s]"
+            )
             mlflow.log_metric("check_ok", int(expected == (infosets, pairs)))
             if expected != (infosets, pairs):
                 raise SystemExit("count does not match the brute-force walk")

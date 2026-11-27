@@ -106,3 +106,38 @@ Dos cartas del mismo nivel empatan (parda).
   del reparto de 3 cartas a cada jugador de un mazo de 40.
 - Es una abstracción sin pérdida: en el envido aislado la mano solo importa a través de los tantos.
 - Si nadie canta, la recompensa es 0.
+
+## Etapa 2: truco aislado
+
+Una mano de truco 1v1
+
+## Etapa 3: mano completa con envido
+
+Una mano con envido y truco, con las reglas de arriba más las siguientes.
+
+### Reparto
+
+- El azar reparte cartas reales (con palo), 3 a cada jugador: el palo importa para los tantos.
+
+### Cuándo se puede cantar envido
+
+- El envido se juega una sola vez por mano.
+- Un jugador puede cantar envido o real envido en su oportunidad dentro de una ventana de cantos si:
+  - todavía no tiró su primera carta,
+  - no se jugó el envido en esta mano,
+  - y no hay un truco aceptado.
+- Cantar envido no usa la oportunidad en la ventana: cuando el envido se resuelve, el mismo jugador
+  sigue con su oportunidad (pasar, cantar truco o irse al mazo).
+- El envido está primero: ante un truco pendiente, quien responde puede cantar envido o real envido
+  en lugar de responder, si cumple las condiciones de arriba. Se resuelve el envido y después
+  responde el truco (quiero, no quiero o retruco).
+- Una vez cantado el envido, las subidas y respuestas son las del envido aislado.
+
+### Resolución
+
+- Envido no querido: quien cantó último suma los puntos de la tabla y la mano sigue.
+- Envido querido: se declaran los tantos como en la etapa 1 y la mano sigue. Los tantos declarados
+  (o "son buenas") son información pública para el resto de la mano.
+- Al terminar la mano, cada jugador suma los puntos del envido más los del truco. La recompensa va de
+  -11 a 11.
+- Irse al mazo da solo los puntos del truco; el envido ya jugado se cobra igual.

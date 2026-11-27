@@ -48,23 +48,25 @@ class Tables:
     """Regrets and average strategy of every information set seen, by key."""
 
     keys: np.ndarray  # int64, one per slot, EMPTY if free
-    regrets: np.ndarray  # float32 (slots, MAX_ACTIONS): cumulative regret of each action
-    strategy_sum: np.ndarray  # float32 (slots, MAX_ACTIONS): average strategy, not normalized
+    regrets: np.ndarray  # float32 (slots, actions): cumulative regret of each action
+    strategy_sum: np.ndarray  # float32 (slots, actions): average strategy, not normalized
     stats: np.ndarray  # int64 counters, indices ENTRIES, FULL, RESCALES
 
     @classmethod
-    def create(cls, capacity_log2: int) -> "Tables":
+    def create(cls, capacity_log2: int, num_actions: int = tn.MAX_ACTIONS) -> "Tables":
+        """Empty tables with 2**capacity_log2 slots of `num_actions` actions (the most legal
+        actions of a state of the game)."""
         slots = 1 << capacity_log2
         return cls(
             keys=np.full(slots, EMPTY, dtype=np.int64),
-            regrets=np.zeros((slots, tn.MAX_ACTIONS), dtype=np.float32),
-            strategy_sum=np.zeros((slots, tn.MAX_ACTIONS), dtype=np.float32),
+            regrets=np.zeros((slots, num_actions), dtype=np.float32),
+            strategy_sum=np.zeros((slots, num_actions), dtype=np.float32),
             stats=np.zeros(3, dtype=np.int64),
         )
 
     @staticmethod
-    def bytes_per_slot() -> int:
-        return 8 + 2 * 4 * tn.MAX_ACTIONS
+    def bytes_per_slot(num_actions: int = tn.MAX_ACTIONS) -> int:
+        return 8 + 2 * 4 * num_actions
 
     @property
     def num_entries(self) -> int:
@@ -153,7 +155,7 @@ def key_of(s, player, key_mode):
 
 
 @njit(cache=True)
-def _regret_matching(regrets, slot, n, out):
+def regret_matching(regrets, slot, n, out):
     """Current strategy of the information set in `slot` (uniform if it is not stored)."""
     total = 0.0
     if slot >= 0:
@@ -170,7 +172,7 @@ def _regret_matching(regrets, slot, n, out):
 
 
 @njit(cache=True)
-def _rescale_if_large(table, slot, n):
+def rescale_if_large(table, slot, n):
     largest = 0.0
     for a in range(n):
         largest = max(largest, abs(table[slot, a]))
@@ -182,7 +184,7 @@ def _rescale_if_large(table, slot, n):
 
 
 @njit(cache=True)
-def _sample(probs, n):
+def sample(probs, n):
     r = np.random.random()
     cumulative = 0.0
     for a in range(n - 1):
@@ -203,7 +205,7 @@ def traverse(s, traverser, keys, regrets, strategy_sum, stats, key_mode):
     n = tn.legal_actions(s, actions)
     slot = find_or_insert(keys, stats, key_of(s, player, key_mode))
     strategy = np.empty(tn.MAX_ACTIONS, dtype=np.float64)
-    _regret_matching(regrets, slot, n, strategy)
+    regret_matching(regrets, slot, n, strategy)
 
     if player == traverser:
         values = np.empty(tn.MAX_ACTIONS, dtype=np.float64)
@@ -216,14 +218,14 @@ def traverse(s, traverser, keys, regrets, strategy_sum, stats, key_mode):
         if slot >= 0:
             for a in range(n):
                 regrets[slot, a] += values[a] - node_value
-            stats[RESCALES] += _rescale_if_large(regrets, slot, n)
+            stats[RESCALES] += rescale_if_large(regrets, slot, n)
         return node_value
 
     if slot >= 0:
         for a in range(n):
             strategy_sum[slot, a] += strategy[a]
-        stats[RESCALES] += _rescale_if_large(strategy_sum, slot, n)
-    tn.apply_action(s, actions[_sample(strategy, n)])
+        stats[RESCALES] += rescale_if_large(strategy_sum, slot, n)
+    tn.apply_action(s, actions[sample(strategy, n)])
     return traverse(s, traverser, keys, regrets, strategy_sum, stats, key_mode)
 
 

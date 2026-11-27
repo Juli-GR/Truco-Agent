@@ -1,7 +1,8 @@
 """Evaluates an MCCFR run (experiments/truco_mccfr.py) against the fixed opponents.
 
 Loads the last checkpoint of the run dir, plays its average strategy on the exact OpenSpiel game
-against each fixed opponent (`truco.agents.truco_rivales`) with duplicate deals
+against each fixed opponent (`truco.agents.truco_rivales`, or `truco.agents.hand_rivales` for a
+run of the hand with envido) with duplicate deals
 (`truco.evaluation.arena`), and logs the points per hand to the run's MLflow run, as
 vs_<opponent> and vs_<opponent>_stderr (the same names as the NFSP and PPO scripts) at the step of
 the checkpoint's iteration.
@@ -23,11 +24,13 @@ from pathlib import Path
 
 import mlflow
 import pyspiel
-from truco_mccfr import CONFIG_FILE, STATE_FILE, last_checkpoint
+from truco_mccfr import CONFIG_FILE, EXPERIMENTS, STATE_FILE, last_checkpoint
 
+import truco.games.hand  # noqa: F401  (registers the game)
 import truco.games.truco  # noqa: F401  (registers the game)
+from truco.agents.hand_rivales import HAND_RIVALES
 from truco.agents.truco_rivales import RIVALES
-from truco.algorithms import mccfr
+from truco.algorithms import mccfr, mccfr_hand
 from truco.evaluation.arena import play_match
 from truco.tracking import setup_experiment
 
@@ -37,12 +40,18 @@ def evaluate(checkpoint: Path, config: dict, num_deals: int, seed: int) -> None:
     print(f"{checkpoint.name} (iteration {iteration:,}), {num_deals:,} duplicate deals", flush=True)
     start = time.perf_counter()
     tables = mccfr.Tables.load(checkpoint, read_only=True)
-    policy = mccfr.MCCFRPolicy(tables, mccfr.KEY_MODES[config["key"]])
-    game = pyspiel.load_game("truco", {"niveles": config["niveles"]})
+    if config.get("game", "truco") == "truco":
+        policy = mccfr.MCCFRPolicy(tables, mccfr.KEY_MODES[config["key"]])
+        game = pyspiel.load_game("truco", {"niveles": config["niveles"]})
+        rivals = RIVALES
+    else:
+        policy = mccfr_hand.HandMCCFRPolicy(tables)
+        game = pyspiel.load_game("truco_con_envido")
+        rivals = HAND_RIVALES
 
     client = mlflow.MlflowClient()
     run_id = config["mlflow_run_id"]
-    for name, rival in RIVALES.items():
+    for name, rival in rivals.items():
         result = play_match(game, policy, rival, num_deals, seed)
         client.log_metric(run_id, f"vs_{name}", result.mean, step=iteration)
         client.log_metric(run_id, f"vs_{name}_stderr", result.stderr, step=iteration)
@@ -62,7 +71,7 @@ def main() -> None:
     args = parser.parse_args()
 
     config = json.loads((args.run_dir / CONFIG_FILE).read_text())
-    setup_experiment("truco-mccfr")  # points MLflow to the repo's database
+    setup_experiment(EXPERIMENTS[config.get("game", "truco")])  # points MLflow to the repo's db
 
     evaluated = None
     while True:

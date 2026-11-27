@@ -1,15 +1,19 @@
-"""Stage 2b: tabular MCCFR (external sampling) on one hand of truco, full deck by default.
+"""Stages 2b and 3: tabular MCCFR (external sampling) on one hand, full deck by default.
 
-Runs `truco.algorithms.mccfr` on the numba simulator, with the information abstraction by default
-(`--key abstract`; `--key exact` only fits small decks). Iterations run in blocks of `--block`;
-after each block the script prints a progress line and logs to MLflow (experiment "truco-mccfr"):
+`--game truco` (stage 2b) runs `truco.algorithms.mccfr` on the truco without envido, with the
+information abstraction by default (`--key abstract`; `--key exact` only fits small decks).
+`--game hand` (stage 3) runs `truco.algorithms.mccfr_hand` on the full hand with envido
+(truco_con_envido), always on the full deck and with its envido abstraction; `--niveles` and
+`--key` do not apply. Iterations run in blocks of `--block`; after each block the script prints a
+progress line and logs to MLflow (experiment "truco-mccfr" or "truco-envido-mccfr"):
 - block_seconds and iterations_per_second (time per block, as a chart);
 - entries and load of the table (information sets seen, fraction of the slots used) and rescales;
 - rss_gb and peak_rss_gb: the RAM the process really uses, now and at its peak.
 
 Checkpoints: every `--checkpoint-hours` (and at the end, or if the run stops on an error or
 Ctrl+C) the tables are written to `<run dir>/checkpoint_<iteration>/`, ignored by git. They are big
-(about 32 GB for the full deck), so only the last one is kept: the new one is written to a temporary
+(about 32 GB for the truco, 52 GB for the hand with envido, with 2**30 slots), so only the last one
+is kept: the new one is written to a temporary
 folder, renamed when complete, and only then the previous one is deleted. A crash while writing
 leaves the previous checkpoint intact; the disk needs room for two checkpoints for a moment.
 
@@ -24,6 +28,7 @@ iterations_per_second metric shows it.
 
 Usage, from the repo root:
     python experiments/truco_mccfr.py --hours 48
+    python experiments/truco_mccfr.py --game hand --hours 48
     python experiments/truco_mccfr.py --niveles 5 --capacity-log2 21 --iterations 10000000
     python experiments/truco_mccfr.py --resume results/mccfr/<run dir> --hours 24
 """
@@ -39,11 +44,13 @@ from pathlib import Path
 import mlflow
 import psutil
 
-from truco.algorithms import mccfr
+from truco.algorithms import mccfr, mccfr_hand
 from truco.games import truco_numba as tn
 from truco.games.cards import NUM_TRUCO_LEVELS
 from truco.tracking import REPO_ROOT, setup_experiment
 
+EXPERIMENTS = {"truco": "truco-mccfr", "hand": "truco-envido-mccfr"}
+NUM_ACTIONS = {"truco": tn.MAX_ACTIONS, "hand": mccfr_hand.NUM_ACTIONS}
 CONFIG_FILE = "config.json"
 CHECKPOINT_PREFIX = "checkpoint_"
 TMP_CHECKPOINT = "checkpoint.tmp"
@@ -90,13 +97,15 @@ def save_checkpoint(tables: mccfr.Tables, run_dir: Path, iteration: int, block: 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--game", choices=EXPERIMENTS, default="truco")
     parser.add_argument("--niveles", type=int, default=NUM_TRUCO_LEVELS)
     parser.add_argument("--key", choices=mccfr.KEY_MODES, default="abstract")
     parser.add_argument(
         "--capacity-log2",
         type=int,
         default=30,
-        help="table slots = 2**this; 30 (~32 GB) fits the full deck with the abstraction",
+        help="table slots = 2**this; 30 fits the full deck with the abstraction (~32 GB for the "
+        "truco, ~52 GB for the hand)",
     )
     parser.add_argument("--block", type=int, default=1_000_000, help="iterations per block")
     parser.add_argument(
@@ -147,24 +156,38 @@ def main() -> None:
         iteration, block = progress["iteration"], progress["block"]
     else:
         config = {
-            "niveles": args.niveles,
-            "key": args.key,
+            "game": args.game,
             "capacity_log2": args.capacity_log2,
             "block": args.block,
             "seed": args.seed,
         }
+        if args.game == "truco":
+            config.update(niveles=args.niveles, key=args.key)
+            name = f"niveles{args.niveles}_{args.key}"
+        else:
+            name = "hand"
         stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-        run_dir = REPO_ROOT / "results" / "mccfr" / f"{stamp}_niveles{args.niveles}_{args.key}"
+        run_dir = REPO_ROOT / "results" / "mccfr" / f"{stamp}_{name}"
         run_dir.mkdir(parents=True)
-        table_bytes = (1 << args.capacity_log2) * mccfr.Tables.bytes_per_slot()
+        num_actions = NUM_ACTIONS[args.game]
+        table_bytes = (1 << args.capacity_log2) * mccfr.Tables.bytes_per_slot(num_actions)
         check_resources(table_bytes, run_dir)
-        tables = mccfr.Tables.create(args.capacity_log2)
+        tables = mccfr.Tables.create(args.capacity_log2, num_actions)
         iteration = block = 0
 
-    deck = tn.make_deck(config["niveles"])
-    key_mode = mccfr.KEY_MODES[config["key"]]
+    game = config.get("game", "truco")  # runs from before stage 3 have no "game"
+    if game == "truco":
+        deck = tn.make_deck(config["niveles"])
+        key_mode = mccfr.KEY_MODES[config["key"]]
 
-    setup_experiment("truco-mccfr")
+        def train(first, size, seed):
+            return mccfr.train(tables, deck, first, size, seed, key_mode, args.threads)
+    else:
+
+        def train(first, size, seed):
+            return mccfr_hand.train(tables, first, size, seed, args.threads)
+
+    setup_experiment(EXPERIMENTS[game])
     run_id = config.get("mlflow_run_id")
     with mlflow.start_run(run_id=run_id, run_name=run_dir.name):
         if run_id is None:
@@ -194,7 +217,7 @@ def main() -> None:
 
                 start = time.perf_counter()
                 seed = block_seed(config["seed"], block)
-                ran = mccfr.train(tables, deck, iteration, size, seed, key_mode, args.threads)
+                ran = train(iteration, size, seed)
                 seconds = time.perf_counter() - start
                 iteration += ran
                 block += 1
