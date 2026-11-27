@@ -108,3 +108,65 @@ agresivo no es suerte de las cartas.
   poder subir más tarde.
 - El juego de cartas no depende de los cantos: no tira una carta mala para disimular.
 - La lectura trata igual un canto y un "quiero", y no saca nada de que el rival *no* cante.
+
+# Rivales con envido (etapa 3)
+
+Para la mano completa (`truco_con_envido`), el código está en `truco/agents/hand_rivales.py`. Son
+los mismos cuatro rivales:
+
+- `aleatorio` elige uniformemente entre las acciones legales.
+- Los heurísticos juegan el **truco** exactamente como arriba, sobre la parte de truco de la mano.
+- El **envido** lo juegan con reglas simples según sus tantos, pensadas para parecerse a una
+  persona y no a un equilibrio.
+
+## Cantar el envido
+
+- Solo considera empezar el envido en su primera decisión de la mano: siendo mano, antes de nada;
+  siendo pie, después de la primera acción del mano (también si esa acción fue cantar truco: "el
+  envido está primero").
+- Canta con una probabilidad que crece con los tantos (una sigmoide): 50 % justo en el umbral
+  `cantar`, ~90 % con 4 tantos más y ~10 % con 4 menos. Nunca baja de `farol`.
+- Si sus tantos llegan al umbral `real`, canta real envido; si no, envido.
+- Si no canta, decide el truco como siempre.
+
+## Responder un envido
+
+Es determinístico:
+
+1. Si puede subir y sus tantos llegan al umbral `subir`, sube (con real envido si llega a `real`).
+2. Si no, quiere si sus tantos llegan a `querer` + (puntos en juego − 2) − (1 si es mano). Ante E
+   pide `querer`; ante E-E-R, que vale 7, pide 5 tantos más. El mano pide uno menos porque gana los
+   empates.
+3. Si no llega, no quiere.
+
+## Parámetros del envido
+
+| Parámetro | `conservador` | `equilibrado` | `agresivo` |
+|---|---|---|---|
+| `cantar` | 28 | 26 | 24 |
+| `real` | 31 | 30 | 28 |
+| `querer` | 27 | 26 | 24 |
+| `subir` | 31 | 30 | 29 |
+| `farol` | 0 | 0,05 | 0,15 |
+
+## Enfrentamientos con envido
+
+Puntos por mano del rival de la fila contra el de la columna (envido + truco), ± el error estándar,
+en 1000 repartos duplicados por par.
+
+| | vs `aleatorio` | vs `conservador` | vs `equilibrado` | vs `agresivo` |
+|---|---|---|---|---|
+| `conservador` | +0,78 ± 0,04 | — | +0,06 ± 0,02 | +0,23 ± 0,03 |
+| `equilibrado` | +1,08 ± 0,04 | −0,06 ± 0,02 | — | +0,19 ± 0,03 |
+| `agresivo` | +1,61 ± 0,04 | −0,23 ± 0,03 | −0,19 ± 0,03 | — |
+
+Se mantiene el orden conservador > equilibrado > agresivo del truco solo.
+
+## Limitaciones del envido
+
+- La equity del truco no usa lo que reveló el envido: ni los tantos declarados ni el hecho de que
+  el rival haya cantado o aceptado.
+- Los tantos se miran solos, sin tener en cuenta qué tan buenas son las cartas para el truco.
+- El pie no vuelve a considerar el envido en su segunda oportunidad (antes de tirar su primera
+  carta, después de la del mano).
+- Entre cartas del mismo nivel elige siempre la misma, así que el palo que tira no esconde nada.
